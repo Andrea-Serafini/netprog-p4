@@ -263,18 +263,17 @@ control MyIngress(inout headers hdr,
    			
    			myTunnel_exact.apply();
             // process tunneled packets
+
+			bit<32> srcip;
+            bit<32> dstip;
+	        bit<32> time;
+
+            treshold_reg.read(srcip,0);
+            treshold_reg.read(dstip,1);
+            treshold_reg.read(time,2);
+
             
-            if(hdr.myTunnel.flag == 0) {
-
-            	bit<32> srcip;
-            	bit<32> dstip;
-	            bit<32> time;
-
-	            //write_reg(0,111111);
-
-	            treshold_reg.read(srcip,0);
-	            treshold_reg.read(dstip,1);
-	            treshold_reg.read(time,2);
+            if(hdr.myTunnel.flag == 0 && time != 0) {
 
 				hdr.myTunnel.IP_Mal = srcip;
 				hdr.myTunnel.TIME = time;
