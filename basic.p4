@@ -7,7 +7,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 typedef bit<10> PortId_t;
 const PortId_t NUM_PORTS = 512;
 #define PACKET_COUNT_WIDTH 32
-#define TRESHOLD 2
+#define TRESHOLD 4
 #define BYTE_COUNT_WIDTH 48
 //#define PACKET_BYTE_COUNT_WIDTH (PACKET_COUNT_WIDTH + BYTE_COUNT_WIDTH)
 #define PACKET_BYTE_COUNT_WIDTH 80
@@ -151,10 +151,7 @@ control MyIngress(inout headers hdr,
     direct_counter(CounterType.packets) c;
     register<bit<48>>(1024) last_seen;
 
-    //Assignment
-    register<bit<32>>(3) TRESHOLD_REG_32;
-    //UNUSED WARNING
-    //register<bit<64>>(1024) flows;
+    register<bit<32>>(3) treshold_reg;
 
     action get_inter_packet_gap(out bit<48> interval,bit<32> flow_id)
     {
@@ -167,6 +164,15 @@ control MyIngress(inout headers hdr,
       last_seen.write((bit<32>)flow_id,
       interval);
     }
+
+    action write_reg(bit<32> id, bit<32> val)
+    {
+      /* Update the register with the new timestamp */
+      bit<32> tmp;
+      tmp = val;
+      treshold_reg.write((bit<32>)id, tmp);
+    }
+
     action compute_flow_id () {
       meta.ingress_metadata.my_flowID[31:0]=hdr.ipv4.srcAddr;
       meta.ingress_metadata.my_flowID[63:32]=hdr.ipv4.dstAddr;
@@ -223,6 +229,7 @@ control MyIngress(inout headers hdr,
     }
     
     apply {
+        
         if (hdr.ipv4.isValid() && !hdr.myTunnel.isValid()) {
             ipv4_lpm.apply();
             bit<48> tmp;
@@ -240,29 +247,43 @@ control MyIngress(inout headers hdr,
             if(tmp < TRESHOLD) {
 
               get_inter_packet_gap(last_pkt_cnt,flow);
+
             }
             else{
-              //TODO remove drop
-              //     save src, dst, timestamp
-              //drop();
-              TRESHOLD_REG_32.write(0,hdr.ipv4.srcAddr);
-              TRESHOLD_REG_32.write(1,hdr.ipv4.dstAddr);
-              TRESHOLD_REG_32.write(2,standard_metadata.enq_timestamp);
+
+              write_reg(0,hdr.ipv4.srcAddr);
+              write_reg(1,hdr.ipv4.dstAddr);
+              write_reg(2,(bit<32>)standard_metadata.ingress_global_timestamp);
 
               get_inter_packet_gap(last_pkt_cnt,flow);
             }
         }
 
         if (hdr.myTunnel.isValid()) {
+   			
+   			myTunnel_exact.apply();
             // process tunneled packets
-            bit<32> a;
-            bit<32> b;
-            TRESHOLD_REG_32.read(a,2);
-            TRESHOLD_REG_32.read(b,0);
-            hdr.myTunnel.TIME = a;
-            hdr.myTunnel.IP_Mal = b;
-            hdr.myTunnel.flag = 1;
-            myTunnel_exact.apply();
+            
+            if(hdr.myTunnel.flag == 0) {
+
+            	bit<32> srcip;
+            	bit<32> dstip;
+	            bit<32> time;
+
+	            //write_reg(0,111111);
+
+	            treshold_reg.read(srcip,0);
+	            treshold_reg.read(dstip,1);
+	            treshold_reg.read(time,2);
+
+				hdr.myTunnel.IP_Mal = srcip;
+				hdr.myTunnel.TIME = time;
+
+	            hdr.myTunnel.flag = 1;
+
+            }
+            
+            
         }
     }
 }
