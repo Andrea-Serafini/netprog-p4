@@ -261,7 +261,6 @@ control MyIngress(inout headers hdr,
 
         if (hdr.myTunnel.isValid()) {
    			
-   			myTunnel_exact.apply();
             // process tunneled packets
 
 			bit<32> srcip;
@@ -282,6 +281,7 @@ control MyIngress(inout headers hdr,
 
             }
             
+            myTunnel_exact.apply();
             
         }
     }
